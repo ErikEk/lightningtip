@@ -197,7 +197,7 @@ func (lnd *LND) SubscribeTransactions(publish PublishTransactionSettled, rescan 
 
 				return
 			}
-			fmt.Printf("--%d-----", transaction.Amount)
+			fmt.Printf("--%d--CONFIRMED OR NOT---", transaction.Amount)
 			/*if transaction.Amount.Settled {
 				go publish(transaction.PaymentRequest)
 			}*/
