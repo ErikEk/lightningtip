@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 
@@ -26,7 +27,7 @@ type LND struct {
 // Connect to a node
 func (lnd *LND) Connect() error {
 	creds, err := credentials.NewClientTLSFromFile(lnd.CertFile, "")
-
+	fmt.Println(lnd.CertFile)
 	if err != nil {
 		log.Error("Failed to read certificate for LND gRPC")
 
@@ -97,6 +98,27 @@ func (lnd *LND) InvoiceSettled(rHash string) (settled bool, err error) {
 	return invoice.Settled, err
 }
 
+// TransactionSettled checks if an invoice is settled by looking it up
+func (lnd *LND) TransactionSettled(rHash string) (settled bool, err error) {
+	//var transactionDetails *lnrpc.Transaction
+
+	/*rpcPaymentHash := lnrpc.PaymentHash{
+		RHash: []byte(rHash),
+	}*/
+	/*rpcTransactionHash := lnrpc.GetTransactionsRequest{
+			TxHash: rHash,
+		}
+	 // FFFFFFFFFFFFFFFFFFFIIIIIIIIIIIIIIIIIXXXXXXXXXXXXXXXXX
+		transactionDetails, err = lnd.client.GetTransactions(lnd.ctx, &rpcTransactionHash)
+
+		if err != nil {
+			return false, err
+		}
+
+		return transactionDetails, err*/
+	return true, err
+}
+
 // SubscribeInvoices subscribe to the invoice events of LND and calls a callback when one is settled
 func (lnd *LND) SubscribeInvoices(publish PublishInvoiceSettled, rescan RescanPendingInvoices) error {
 	stream, err := lnd.client.SubscribeInvoices(lnd.ctx, &lnrpc.InvoiceSubscription{})
@@ -109,6 +131,7 @@ func (lnd *LND) SubscribeInvoices(publish PublishInvoiceSettled, rescan RescanPe
 
 	go func() {
 		for {
+			fmt.Println("ss")
 			invoice, streamErr := stream.Recv()
 
 			if streamErr == io.EOF {
@@ -130,6 +153,54 @@ func (lnd *LND) SubscribeInvoices(publish PublishInvoiceSettled, rescan RescanPe
 			if invoice.Settled {
 				go publish(invoice.PaymentRequest)
 			}
+
+		}
+
+	}()
+
+	// Connected successfully to LND
+	// If there are pending invoices after reconnecting they should get rescanned now
+	rescan()
+
+	<-wait
+
+	return err
+}
+
+// SubscribeTransactions subscribe to the invoice events of LND and calls a callback when one is settled
+func (lnd *LND) SubscribeTransactions(publish PublishTransactionSettled, rescan RescanPendingTransactions) error {
+	stream, err := lnd.client.SubscribeTransactions(lnd.ctx, &lnrpc.GetTransactionsRequest{})
+
+	if err != nil {
+		return err
+	}
+
+	wait := make(chan struct{})
+
+	go func() {
+		for {
+			fmt.Println("ss")
+			transaction, streamErr := stream.Recv()
+
+			if streamErr == io.EOF {
+				err = errors.New("lost connection to LND gRPC")
+
+				close(wait)
+
+				return
+			}
+
+			if streamErr != nil {
+				err = streamErr
+
+				close(wait)
+
+				return
+			}
+			fmt.Printf("--%d-----", transaction.Amount)
+			/*if transaction.Amount.Settled {
+				go publish(transaction.PaymentRequest)
+			}*/
 
 		}
 

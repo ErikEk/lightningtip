@@ -94,6 +94,7 @@ func main() {
 
 		http.Handle("/", handleHeaders(notFoundHandler))
 		http.Handle("/getinvoice", handleHeaders(getInvoiceHandler))
+		http.Handle("/transation", handleHeaders(getInvoiceHandler))
 		http.Handle("/eventsource", handleHeaders(eventSrv.Handler(eventChannel)))
 
 		// Alternative for browsers which don't support EventSource (Internet Explorer and Edge)
@@ -128,6 +129,9 @@ func main() {
 
 		}()
 
+		go func() {
+			subscribeToTransactions()
+		}()
 		go func() {
 			subscribeToInvoices()
 		}()
@@ -194,6 +198,25 @@ func subscribeToInvoices() {
 
 }
 
+func subscribeToTransactions() {
+	log.Info("Subscribing to transactions")
+
+	err := backend.SubscribeTransactions(publishTransactionSettled, rescanPendingTransactions)
+
+	log.Error("Failed to subscribe to invoices: " + fmt.Sprint(err))
+
+	if err != nil {
+		if cfg.ReconnectInterval != 0 {
+			reconnectToBackend()
+
+		} else {
+			os.Exit(1)
+		}
+
+	}
+
+}
+
 func reconnectToBackend() {
 	time.Sleep(time.Duration(cfg.ReconnectInterval) * time.Second)
 
@@ -212,6 +235,7 @@ func reconnectToBackend() {
 			log.Info("Reconnected to LND")
 
 			subscribeToInvoices()
+			subscribeToTransactions()
 		}
 
 	}
@@ -245,6 +269,28 @@ func rescanPendingInvoices() {
 
 }
 
+func rescanPendingTransactions() {
+	/*if len(pendingTransaction) > 0 {
+		log.Debug("Rescanning pending transaction")
+
+		for _, invoice := range pendingInvoices {
+			settled, err := backend.TransactionSettled(invoice.RHash)
+
+			if err == nil {
+				if settled {
+					publishTransactionSettled(invoice.Invoice)
+				}
+
+			} else {
+				log.Warning("Failed to check if invoice settled: " + fmt.Sprint(err))
+			}
+
+		}
+
+	}*/
+
+}
+
 func publishInvoiceSettled(invoice string) {
 	for index, settled := range pendingInvoices {
 		if settled.Invoice == invoice {
@@ -264,6 +310,10 @@ func publishInvoiceSettled(invoice string) {
 		}
 
 	}
+
+}
+
+func publishTransactionSettled() {
 
 }
 
